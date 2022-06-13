@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use axum::extract::ws::{Message, WebSocket};
@@ -30,6 +31,7 @@ pub struct Socket {
     join_ref: Option<String>,
     msg_ref: Option<String>,
     assigns: Map<String, Value>,
+    channels: HashSet<String>,
 }
 
 impl Default for Socket {
@@ -43,6 +45,7 @@ impl Default for Socket {
             join_ref: None,
             msg_ref: None,
             assigns: Map::new(),
+            channels: HashSet::new(),
         }
     }
 }
@@ -70,6 +73,18 @@ impl Socket {
 
     pub fn topic(&self) -> Option<String> {
         self.topic.clone()
+    }
+
+    pub fn join_channel(&mut self, topic: &str) {
+        self.channels.insert(topic.to_string());
+    }
+
+    pub fn leave_channel(&mut self, topic: &str) {
+        self.channels.remove(topic);
+    }
+
+    pub fn contains_channel(&self, topic: &str) -> bool {
+        self.channels.contains(topic)
     }
 
     pub fn update(
@@ -159,9 +174,11 @@ impl Socket {
         event: &str,
         message: Value,
     ) {
-        let message = Self::reply_message(self.join_ref.clone(), None, topic, event, message);
+        let message =
+            Self::reply_message(self.join_ref.clone(), None, topic.clone(), event, message);
 
         let data = json!({
+            "topic": topic.unwrap_or("".to_string()),
             "action": action,
             "from": from,
             "payload": message

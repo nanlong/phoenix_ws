@@ -48,13 +48,21 @@ impl UserChannel {
         self.handle_event("phx_leave", callback);
     }
 
-    pub async fn dispatch(&mut self, event: &str, payload: Value, socket: Arc<Mutex<Socket>>) {
+    pub async fn dispatch(&mut self, event: &str, message: Value, socket: Arc<Mutex<Socket>>) {
         if let Some(callback) = self.handles.get(event) {
-            callback.call(payload, socket.clone()).await;
+            callback.call(message[4].clone(), socket.clone()).await;
         };
 
-        if (event == "phx_join" || event == "phx_leave") && self.handles.get(event).is_none() {
-            socket.lock().await.reply("ok", Value::Null).await;
+        match event {
+            "phx_join" => socket
+                .lock()
+                .await
+                .join_channel(message[2].as_str().unwrap()),
+            "phx_leave" => socket
+                .lock()
+                .await
+                .leave_channel(message[2].as_str().unwrap()),
+            _ => (),
         }
     }
 }

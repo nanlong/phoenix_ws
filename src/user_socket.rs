@@ -105,8 +105,9 @@ impl UserSocket {
                     (topic, event) => {
                         if let Some(channel) = user_socket.get_channel(topic) {
                             let mut channel = channel.lock().await;
-                            let payload = message[4].clone();
-                            channel.dispatch(event, payload, socket1.clone()).await;
+                            channel
+                                .dispatch(event, message.clone(), socket1.clone())
+                                .await;
                         }
                     }
                 }
@@ -116,18 +117,24 @@ impl UserSocket {
         let mut send_task = tokio::spawn(async move {
             while let Ok(message) = rx.recv().await {
                 let message: Value = serde_json::from_str(&message).unwrap();
-                let action = message["action"].as_str().unwrap();
+                let topic = message["topic"].as_str().unwrap();
 
-                match action {
-                    "boardcast" => socket2.lock().await.send(message["payload"].clone()).await,
-                    "boardcast_from" => {
-                        let from = message["from"].as_str().unwrap();
-
-                        if from != socket2.lock().await.id().as_str() {
-                            socket2.lock().await.send(message["payload"].clone()).await;
+                if socket.lock().await.contains_channel(topic) {
+                    match message["action"].as_str().unwrap() {
+                        "boardcast" => {
+                            let socket = socket2.lock().await;
+                            socket.send(message["payload"].clone()).await;
                         }
+                        "boardcast_from" => {
+                            let socket = socket2.lock().await;
+                            let from = message["from"].as_str().unwrap();
+
+                            if from != socket.id().as_str() {
+                                socket.send(message["payload"].clone()).await;
+                            }
+                        }
+                        _ => (),
                     }
-                    _ => (),
                 }
             }
         });
