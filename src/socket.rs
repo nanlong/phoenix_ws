@@ -68,6 +68,10 @@ impl Socket {
         self.joined
     }
 
+    pub fn topic(&self) -> Option<String> {
+        self.topic.clone()
+    }
+
     pub fn update(
         &mut self,
         sender: Arc<Mutex<SplitSink<WebSocket, Message>>>,
@@ -131,37 +135,31 @@ impl Socket {
         self.send(message).await;
     }
 
-    pub async fn boardcast(&self, topic: &str, event: &str, message: Value) {
-        self.do_boardcast(None, "boardcast", topic, event, message)
+    pub async fn boardcast(&self, event: &str, message: Value) {
+        self.do_boardcast(None, self.topic(), "boardcast", event, message)
             .await;
     }
 
-    pub async fn boardcast_from(&self, topic: &str, event: &str, message: Value) {
+    pub async fn boardcast_from(&self, event: &str, message: Value) {
         self.do_boardcast(
             Some(self.id.to_string()),
+            self.topic(),
             "boardcast_from",
-            topic,
             event,
             message,
         )
         .await;
     }
 
-    async fn do_boardcast(
+    pub async fn do_boardcast(
         &self,
         from: Option<String>,
+        topic: Option<String>,
         action: &str,
-        topic: &str,
         event: &str,
         message: Value,
     ) {
-        let message = Self::reply_message(
-            self.join_ref.clone(),
-            None,
-            Some(topic.to_string()),
-            event,
-            message,
-        );
+        let message = Self::reply_message(self.join_ref.clone(), None, topic, event, message);
 
         let data = json!({
             "action": action,
