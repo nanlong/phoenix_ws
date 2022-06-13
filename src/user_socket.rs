@@ -94,7 +94,7 @@ impl UserSocket {
         let mut recv_task = tokio::spawn(async move {
             while let Some(Ok(Message::Text(message))) = receiver.next().await {
                 let message: Value = serde_json::from_str(&message).unwrap();
-                let mut user_socket = user_socket.lock().await;
+                let user_socket = user_socket.lock().await;
                 socket1.lock().await.from_message(message.clone());
 
                 match (message[2].as_str().unwrap(), message[3].as_str().unwrap()) {
@@ -103,7 +103,7 @@ impl UserSocket {
                     }
                     // phx_join | phx_leave | other_event
                     (topic, event) => {
-                        if let Some(channel) = user_socket.channels.get_mut(topic) {
+                        if let Some(channel) = user_socket.get_channel(topic) {
                             let mut channel = channel.lock().await;
                             let payload = message[4].clone();
                             channel.dispatch(event, payload, socket1.clone()).await;
@@ -143,5 +143,19 @@ impl UserSocket {
             .route("/socket/websocket", get(Self::websocket))
             .layer(Extension(Arc::new(Mutex::new(user_socket))))
             .layer(Extension(Arc::new(Mutex::new(SocketState::default()))))
+    }
+
+    fn get_channel(&self, topic: &str) -> Option<&Arc<Mutex<UserChannel>>> {
+        if let Some(channel) = self.channels.get(topic) {
+            return Some(channel);
+        }
+
+        if topic.contains(":") {
+            let prefix = topic.split(":").next().unwrap();
+            let topic = format!("{}:*", prefix);
+            return self.channels.get(topic.as_str());
+        }
+
+        None
     }
 }
